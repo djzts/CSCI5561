@@ -225,7 +225,16 @@ def pool2x2_backward(dl_dy, x, y):
         dl_dx_pre[:,:,k] = x_temp.reshape((np.int(2*new_size[0]),np.int(2*new_size[1])))
 
 
-    dl_dx = dl_dx_pre[:-add_1, :-add_2, :]
+    if (add_1!=0):
+        if (add_2!=0):
+            dl_dx = dl_dx_pre[:-1, :-1, :]
+        else:
+            dl_dx = dl_dx_pre[:-1, :, :]
+    else:
+        if (add_2!=0):
+            dl_dx = dl_dx_pre[:, :-1, :]
+        else:
+            dl_dx = dl_dx_pre[:, :, :]
 
     return dl_dx
 
@@ -349,7 +358,9 @@ def train_slp(mini_batch_x, mini_batch_y):
             for j in range(batch_size):
 
                 x = ((mini_batch_x[i])[:,j]).reshape((1,196))
-                y_tilde = fc(x, w, b);
+
+                y_tilde = fc(x, w, b)
+
                 y = ((mini_batch_y[i])[j,:]).reshape((1,10))
 
                 # loss
@@ -387,8 +398,8 @@ def train_mlp(mini_batch_x, mini_batch_y):
     nBatch = len(mini_batch_x)
     batch_size = x_shape[1]
     print(y_shape)
-    lr =1.1e-5  #1.77e-5
-    lamda =0.915  #0.82
+    lr =1e-4  #1.77e-5
+    lamda =0.96  #0.82
 
     #w1_size = [30, x_shape[0]]
     #w2_size = [y_shape[0], 30]
@@ -487,7 +498,7 @@ def train_cnn(mini_batch_x, mini_batch_y):
     b_conv = np.random.rand(1,3)
     w_fc = np.random.rand(10,147)
     b_fc = np.random.rand(10,1)
-    nIter = 20
+    nIter = 15
 
     loss_curve = []
     for id_x in range(nIter):
@@ -508,22 +519,32 @@ def train_cnn(mini_batch_x, mini_batch_y):
             for j in range(batch_size):
                 x = ((mini_batch_x[i])[:,j]).reshape((14,14,1)) # input
                 a_1 = conv(x, w_conv, b_conv)      # Conv
+                #print(a_1.shape)
                 f_1 = relu(a_1)                    # Relu
                 f_2 = pool2x2(f_1)                # Pooling
                 f_3 = flattening(f_2)             # Flatten
 
-                a_2 = fc(f_3, w_fc, b_fc);          # FC
-
+                a_2 = fc(f_3, w_fc, b_fc)        # FC
                 y = ((mini_batch_y[i])[j,:]).reshape((1,10))
                 # loss
+                #if(np.random.rand(1)>0.9999):
+                    #print(a_2,y)
+
                 loss, dl_da_2 = loss_cross_entropy_softmax(a_2, y)  #dldy -- n*1
                 dl_df_3, dl_dw_fc, dl_db_fc = fc_backward(dl_da_2, f_3, w_fc, b_fc, a_2)
                 dL_dw_fc = dL_dw_fc + dl_dw_fc.reshape(w_fc.shape)
                 dL_db_fc = dL_db_fc + dl_db_fc.reshape(dL_db_fc.shape)
 
                 dl_df_2 = flattening_backward(dl_df_3, f_2, f_3)
+
                 dl_df_1 = pool2x2_backward(dl_df_2, f_1, f_2)
+
                 dl_da_1 = relu_backward(dl_df_1, a_1, f_1)
+                #if(np.random.rand(1)>0.9999):
+                    #print(dl_da_1,dl_da_1.shape)
+
+
+
                 dl_dw_conv, dl_db_conv = conv_backward(dl_da_1, x, w_conv, b_conv, a_1)
                 dL_dw_conv = dL_dw_conv + dl_dw_conv
                 dL_db_conv = dL_db_conv + dl_db_conv
@@ -533,9 +554,12 @@ def train_cnn(mini_batch_x, mini_batch_y):
             b_conv = b_conv - lr/batch_size*dL_db_conv
             w_fc = w_fc - lr/batch_size*dL_dw_fc
             b_fc = b_fc - lr/batch_size*dL_db_fc
+            if(np.random.rand(1)>0.9):
+                print(loss, dl_da_2)
 
+        print(loss, dl_da_2)
 
-            loss_curve.append(loss/batch_size)
+        loss_curve.append(loss/batch_size)
 
 
 
