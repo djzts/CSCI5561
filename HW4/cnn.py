@@ -281,10 +281,10 @@ def train_slp_linear(mini_batch_x, mini_batch_y):
 
             L = L / batch_size
 
-        loss_curve.append(loss)
+        loss_curve.append(L)
 
     loss_np = np.array(loss_curve)
-    np.save("slp_loss.npy", loss_np)
+    np.save("slp_linear_loss.npy", loss_np)
     sio.savemat('slp_linear.mat', {
         'w': w ,
         'b': b
@@ -335,7 +335,7 @@ def train_slp(mini_batch_x, mini_batch_y):
                 y = ((mini_batch_y[i])[j,:]).reshape((1,10))
 
                 # loss
-                loss, dl_dy = loss_euclidean(y_tilde, y)
+                loss, dl_dy = loss_cross_entropy_softmax(y_tilde, y)
 
                 # dldy -- n*1
                 dl_dx, dl_dw, dl_db = fc_backward(dl_dy, x, w, b, y)
@@ -348,27 +348,176 @@ def train_slp(mini_batch_x, mini_batch_y):
 
             b = b - (gamma/batch_size*dL_db).reshape(b.shape)
 
-            L = L / batch_size
+        L = L / batch_size
 
-        loss_curve.append(loss)
+        loss_curve.append(L)
 
     loss_np = np.array(loss_curve)
     np.save("slp_loss.npy", loss_np)
-    sio.savemat('slp_linear.mat', {
+    sio.savemat('slp.mat', {
         'w': w ,
         'b': b
         })
-    % learning rate
 
     return w, b
 
 def train_mlp(mini_batch_x, mini_batch_y):
     # TO DO
+    # Loss = [];
+    x_shape = (mini_batch_x[0]).shape
+    y_shape = (mini_batch_y[0]).shape
+    nBatch = len(mini_batch_x)
+    batch_size = x_shape[1]
+
+    lr = 1e-5
+    lambda = 0.2
+
+    #w1_size = [30, x_shape[0]]
+    #w2_size = [y_shape[0], 30]
+    #b1_size = [30, 1]
+    #b2_size = [y_shape[0], 1]
+
+    w1 = np.random.rand(10,196)
+    w2 = np.random.rand(y_shape[0], 30)
+    b1 = np.random.rand(30, 1)
+    b2 = np.random.rand(y_shape[0], 1)
+    nIter = 50
+    #k = 1
+
+    loss_curve = []
+
+    #Training Loop
+    for id_x in range(nIter)
+        if mod(id_x, 10) == 0
+            lr = lr * lambda;
+        end
+        dL_dw1 = 0;
+        dL_dw2 = 0;
+        dL_db1 = 0;
+        dL_db2 = 0;
+
+        for i in range(nBatch)
+            L = 0
+
+            for j in range(batch_size)
+                x = ((mini_batch_x[i])[:,j]).reshape((1,196))
+                a_1 = fc(x, w1, b1);     % a_1 = w * x + b
+                f_1 = reLu(a_1)
+                a_2 = fc(f_1, w2, b2)    % a_2 = w * f_1 + b
+
+                y = ((mini_batch_y[i])[j,:]).reshape((1,10))
+                # loss
+                loss, dl_da_2 = loss_cross_entropy_softmax(a_2, y)  #dldy -- n*1
+                dl_df_1, dl_dw2, dl_db2 = fc_backward(dl_da_2, f_1, w2, b2, y)
+                dl_da_1 = reLu_backward(dl_df_1, a_1, f_1)
+                [dl_dx, dl_dw1, dl_db1] = fc_backward(dl_da_1, x, w1, b1, a_1)
+
+
+                dL_dw1 = dL_dw1 + dl_dw1
+                dL_db1 = dL_db1 + dl_db1
+                dL_dw2 = dL_dw2 + dl_dw2
+                dL_db2 = dL_db2 + dl_db2
+                L = L + loss
+
+
+
+            w1 = w1 - lr/batch_size*dL_dw1.reshape(w1.shape)
+            b1 = b1 - lr/batch_size*dL_db1
+            w2 = w2 - lr/batch_size*dL_dw2.reshape(w2.shape)
+            b2 = b2 - lr/batch_size*dL_db2
+
+
+        L = L / batch_size;
+
+        loss_curve.append(L)
+
+    loss_np = np.array(loss_curve)
+    np.save("mlp_loss.npy", loss_np)
+    sio.savemat('mlp.mat', {
+        'w1': w1 ,
+        'b1': b1 ,
+        'w2': w2 ,
+        'b2': b2
+        })
+
     return w1, b1, w2, b2
 
 
 def train_cnn(mini_batch_x, mini_batch_y):
     # TO DO
+    x_shape = (mini_batch_x[0]).shape
+    y_shape = (mini_batch_y[0]).shape
+    nBatch = len(mini_batch_x)
+    batch_size = x_shape[1]
+
+    lr = 1e-5
+    lambda = 0.8
+
+
+    #w_conv_size = [3 3 1 3]
+    #b_conv_size = [1 3]
+    #w_fc_size = [10 147]
+    #b_fc_size = [10 1]
+
+
+    w_conv = np.random.rand(3,3,1,3)
+    w_fc_size = np.random.rand(1,3)
+    b_conv = np.random.rand(10,147)
+    b_fc_size = np.random.rand(10,1)
+    nIter = 20
+
+    loss_curve = []
+
+    for iter = 1:iteration
+        disp(['CNN training iteration #',num2str(iter)]);
+
+
+        if mod(iter, 100) == 0
+            lr = lr * lambda;
+
+
+            dLdw_conv = zeros(w_conv_size);
+            dLdb_conv = zeros(b_conv_size);
+            dLdw_fc = zeros(w_fc_size);
+            dLdb_fc = zeros(b_fc_size);
+
+        for i = 1:nBatch
+
+            for j = 1:batchSize
+                x = reshape(mini_x(i,:,j), [14 14]); % input
+
+                a_1 = Conv(x, w_conv, b_conv);      % Conv
+                f_1 = ReLu(a_1);                    % Relu
+                f_2 = Pool2x2(f_1);                 % Pooling
+                f_3 = Flattening(f_2);              % Flatten
+
+                a_2 = FC(f_3, w_fc, b_fc);          % FC
+
+                y = reshape(mini_y(i, :, j), [10, 1]);
+                # loss
+                [loss, dlda_2] = Loss_cross_entropy_softmax(a_2, y);  #dldy -- n*1
+                [dldf_3, dldw_fc, dldb_fc] = FC_backward(dlda_2, f_3, w_fc, b_fc, a_2);
+                dLdw_fc = dLdw_fc + reshape(dldw_fc, w_fc_size);
+                dLdb_fc = dLdb_fc + dldb_fc;
+
+                [dldf_2] = Flattening_backward(dldf_3, f_2, f_3);
+                [dldf_1] = Pool2x2_backward(dldf_2, f_1, f_2);
+                [dlda_1] = ReLu_backward(dldf_1, a_1, f_1);
+                [dldw_conv, dldb_conv] = Conv_backward(dlda_1, x, w_conv, b_conv, a_1);
+                dLdw_conv = dLdw_conv + dldw_conv;
+                dLdb_conv = dLdb_conv + dldb_conv;
+
+
+            w_conv = w_conv - lr/batchSize*dLdw_conv;
+            b_conv = b_conv - lr/batchSize*dLdb_conv;
+            w_fc = w_fc - lr/batchSize*dLdw_fc;
+            b_fc = b_fc - lr/batchSize*dLdb_fc;
+
+
+         loss_curve.append(loss)
+
+
+
     return w_conv, b_conv, w_fc, b_fc
 
 
