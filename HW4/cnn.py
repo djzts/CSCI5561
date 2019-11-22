@@ -39,8 +39,11 @@ def get_mini_batch(im_train, label_train, batch_size):
 def fc(x, w, b):
     # TO DO
     # w:batch*196    # x:196*1    # b:batch*1
+    w = w.reshape((10,196))
+    x = x.reshape((196,1))
+    b = b.reshape((np.max(b.shape),1))
 
-    y = w @ x.T+b
+    y = w @ x+b
 
     y = y.reshape(1,-1)
 
@@ -146,7 +149,7 @@ def conv_backward(dl_dy, x, w_conv, b_conv, y):
     dl_dw = np.zeros_like(w_conv)
     dl_db = np.zeros_like(b_conv)
 
-    for j in range(w_conv_shape[-1])
+    for j in range(w_conv_shape[-1]):
         L = dl_dy[:,:,j].reshape((1,x_shape[0]*x_shape[1]))
         for i in range(x_shape[-1]):
             x_padding = np.pad(x[:,:,id_i], (1, 1), 'constant', constant_values=0)
@@ -192,7 +195,7 @@ def pool2x2_backward(dl_dy, x, y):
 
     dl_dx_pre = np.zeros((2*new_size[0],2*new_size[1],x_size[-1]))
 
-    for k = 1:C1
+    for k in range(x_size[-1]):
 
         K = 2
         L = 2
@@ -370,7 +373,7 @@ def train_mlp(mini_batch_x, mini_batch_y):
     batch_size = x_shape[1]
 
     lr = 1e-5
-    lambda = 0.2
+    lamda = 0.2
 
     #w1_size = [30, x_shape[0]]
     #w2_size = [y_shape[0], 30]
@@ -387,23 +390,22 @@ def train_mlp(mini_batch_x, mini_batch_y):
     loss_curve = []
 
     #Training Loop
-    for id_x in range(nIter)
-        if mod(id_x, 10) == 0
-            lr = lr * lambda;
-        end
+    for id_x in range(nIter):
+        if ((id_x%10) == 0):
+            lr = lr * lamda
         dL_dw1 = 0;
         dL_dw2 = 0;
         dL_db1 = 0;
         dL_db2 = 0;
 
-        for i in range(nBatch)
+        for i in range(nBatch):
             L = 0
 
-            for j in range(batch_size)
+            for j in range(batch_size):
                 x = ((mini_batch_x[i])[:,j]).reshape((1,196))
-                a_1 = fc(x, w1, b1);     % a_1 = w * x + b
+                a_1 = fc(x, w1, b1);     # a_1 = w * x + b
                 f_1 = reLu(a_1)
-                a_2 = fc(f_1, w2, b2)    % a_2 = w * f_1 + b
+                a_2 = fc(f_1, w2, b2)    # a_2 = w * f_1 + b
 
                 y = ((mini_batch_y[i])[j,:]).reshape((1,10))
                 # loss
@@ -451,7 +453,7 @@ def train_cnn(mini_batch_x, mini_batch_y):
     batch_size = x_shape[1]
 
     lr = 1e-5
-    lambda = 0.8
+    lamda = 0.8
 
 
     #w_conv_size = [3 3 1 3]
@@ -468,53 +470,6 @@ def train_cnn(mini_batch_x, mini_batch_y):
 
     loss_curve = []
 
-    for iter = 1:iteration
-        disp(['CNN training iteration #',num2str(iter)]);
-
-
-        if mod(iter, 100) == 0
-            lr = lr * lambda;
-
-
-            dLdw_conv = zeros(w_conv_size);
-            dLdb_conv = zeros(b_conv_size);
-            dLdw_fc = zeros(w_fc_size);
-            dLdb_fc = zeros(b_fc_size);
-
-        for i = 1:nBatch
-
-            for j = 1:batchSize
-                x = reshape(mini_x(i,:,j), [14 14]); % input
-
-                a_1 = Conv(x, w_conv, b_conv);      % Conv
-                f_1 = ReLu(a_1);                    % Relu
-                f_2 = Pool2x2(f_1);                 % Pooling
-                f_3 = Flattening(f_2);              % Flatten
-
-                a_2 = FC(f_3, w_fc, b_fc);          % FC
-
-                y = reshape(mini_y(i, :, j), [10, 1]);
-                # loss
-                [loss, dlda_2] = Loss_cross_entropy_softmax(a_2, y);  #dldy -- n*1
-                [dldf_3, dldw_fc, dldb_fc] = FC_backward(dlda_2, f_3, w_fc, b_fc, a_2);
-                dLdw_fc = dLdw_fc + reshape(dldw_fc, w_fc_size);
-                dLdb_fc = dLdb_fc + dldb_fc;
-
-                [dldf_2] = Flattening_backward(dldf_3, f_2, f_3);
-                [dldf_1] = Pool2x2_backward(dldf_2, f_1, f_2);
-                [dlda_1] = ReLu_backward(dldf_1, a_1, f_1);
-                [dldw_conv, dldb_conv] = Conv_backward(dlda_1, x, w_conv, b_conv, a_1);
-                dLdw_conv = dLdw_conv + dldw_conv;
-                dLdb_conv = dLdb_conv + dldb_conv;
-
-
-            w_conv = w_conv - lr/batchSize*dLdw_conv;
-            b_conv = b_conv - lr/batchSize*dLdb_conv;
-            w_fc = w_fc - lr/batchSize*dLdw_fc;
-            b_fc = b_fc - lr/batchSize*dLdb_fc;
-
-
-         loss_curve.append(loss)
 
 
 
@@ -523,6 +478,6 @@ def train_cnn(mini_batch_x, mini_batch_y):
 
 if __name__ == '__main__':
     main.main_slp_linear()
-    main.main_slp()
-    main.main_mlp()
-    main.main_cnn()
+    #main.main_slp()
+    #main.main_mlp()
+    #main.main_cnn()
