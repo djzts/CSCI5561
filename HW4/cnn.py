@@ -39,8 +39,8 @@ def get_mini_batch(im_train, label_train, batch_size):
 def fc(x, w, b):
     # TO DO
     # w:batch*196    # x:196*1    # b:batch*1
-    w = w.reshape((10,196))
-    x = x.reshape((196,1))
+    w = w.reshape((np.max(b.shape),np.max(w.shape)))
+    x = x.reshape((np.max(x.shape),1))
     b = b.reshape((np.max(b.shape),1))
 
     y = w @ x+b
@@ -90,7 +90,8 @@ def loss_cross_entropy_softmax(x, y):
 def relu(x):
     # TO DO
 
-    y = np.max(0, x)
+    #y = np.max(0, x)
+    y = np.where(x>0,x,0)
 
     return y
 
@@ -103,8 +104,9 @@ def relu_backward(dl_dy, x, y):
 
     dy_dx = np.where(x > 0,1,0)
 
-    dLdx = dLdy * dydx;
 
+    dl_dx = dl_dy * dy_dx;
+    #print(dl_dy.shape,dy_dx.shape,dl_dx.shape)
     return dl_dx
 
 def im2col_sliding_strided(A, BSZ, stepsize=1):
@@ -371,19 +373,19 @@ def train_mlp(mini_batch_x, mini_batch_y):
     y_shape = (mini_batch_y[0]).shape
     nBatch = len(mini_batch_x)
     batch_size = x_shape[1]
-
+    print(y_shape)
     lr = 1e-5
-    lamda = 0.2
+    lamda = 0.96
 
     #w1_size = [30, x_shape[0]]
     #w2_size = [y_shape[0], 30]
     #b1_size = [30, 1]
     #b2_size = [y_shape[0], 1]
 
-    w1 = np.random.rand(10,196)
-    w2 = np.random.rand(y_shape[0], 30)
+    w1 = np.random.rand(30,196)
+    w2 = np.random.rand(10, 30)
     b1 = np.random.rand(30, 1)
-    b2 = np.random.rand(y_shape[0], 1)
+    b2 = np.random.rand(10, 1)
     nIter = 50
     #k = 1
 
@@ -391,12 +393,17 @@ def train_mlp(mini_batch_x, mini_batch_y):
 
     #Training Loop
     for id_x in range(nIter):
+
+        if (id_x%50 == 0):
+            print("Done",id_x/nIter)
+        #print("Done",id_x)
+
         if ((id_x%10) == 0):
             lr = lr * lamda
-        dL_dw1 = 0;
-        dL_dw2 = 0;
-        dL_db1 = 0;
-        dL_db2 = 0;
+        dL_dw1 = np.zeros((1,np.size(w1)))
+        dL_dw2 = np.zeros((1,np.size(w2)))
+        dL_db1 = np.zeros((1,np.size(b1)))
+        dL_db2 = np.zeros((1,np.size(b2)))
 
         for i in range(nBatch):
             L = 0
@@ -404,29 +411,30 @@ def train_mlp(mini_batch_x, mini_batch_y):
             for j in range(batch_size):
                 x = ((mini_batch_x[i])[:,j]).reshape((1,196))
                 a_1 = fc(x, w1, b1);     # a_1 = w * x + b
-                f_1 = reLu(a_1)
+                f_1 = relu(a_1)
                 a_2 = fc(f_1, w2, b2)    # a_2 = w * f_1 + b
 
                 y = ((mini_batch_y[i])[j,:]).reshape((1,10))
                 # loss
                 loss, dl_da_2 = loss_cross_entropy_softmax(a_2, y)  #dldy -- n*1
                 dl_df_1, dl_dw2, dl_db2 = fc_backward(dl_da_2, f_1, w2, b2, y)
-                dl_da_1 = reLu_backward(dl_df_1, a_1, f_1)
+                dl_da_1 = relu_backward(dl_df_1, a_1, f_1)
                 [dl_dx, dl_dw1, dl_db1] = fc_backward(dl_da_1, x, w1, b1, a_1)
 
 
                 dL_dw1 = dL_dw1 + dl_dw1
                 dL_db1 = dL_db1 + dl_db1
                 dL_dw2 = dL_dw2 + dl_dw2
+                #print(dL_db2.shape , dl_db2.shape)
                 dL_db2 = dL_db2 + dl_db2
                 L = L + loss
 
 
 
             w1 = w1 - lr/batch_size*dL_dw1.reshape(w1.shape)
-            b1 = b1 - lr/batch_size*dL_db1
+            b1 = b1 - lr/batch_size*dL_db1.reshape(b1.shape)
             w2 = w2 - lr/batch_size*dL_dw2.reshape(w2.shape)
-            b2 = b2 - lr/batch_size*dL_db2
+            b2 = b2 - lr/batch_size*dL_db2.reshape(b2.shape)
 
 
         L = L / batch_size;
