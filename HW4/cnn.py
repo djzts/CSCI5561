@@ -104,8 +104,12 @@ def relu_backward(dl_dy, x, y):
 
     dy_dx = np.where(x > 0,1,0)
 
-
-    dl_dx = dl_dy * dy_dx;
+    try:
+        dl_dx = dl_dy * dy_dx
+    except:
+        dl_dx = np.zeros_like(dy_dx)
+        for i in range(len(dl_dy)):
+            dl_dx[:,:,i] = dl_dy[i]* dy_dx[:,:,i]
     #print(dl_dy.shape,dy_dx.shape,dl_dx.shape)
     return dl_dx
 
@@ -134,9 +138,11 @@ def conv(x, w_conv, b_conv):
         X = im2col_sliding_strided(x_padding, [3,3])
 
         for id_j in range(w_conv_shape[-1]):
-            w = np.flip(w_conv[:,:,id_i,id_j].reshape((1,w_conv_shape[0]*w_conv_shape[1])))
+            w = np.flip(w_conv[:,:,id_i,id_j].reshape((1,w_conv_shape[0]*w_conv_shape[1])),axis=0)
 
-            b = b_conv[id-j]
+            b = b_conv[:,id_j]
+
+            #print(w.shape,X.shape,b_conv.shape)
 
             y[:,:,id_j] = y[:,:,id_j] +  (w @ X - b).reshape((x_shape[0],x_shape[1]))
 
@@ -154,7 +160,7 @@ def conv_backward(dl_dy, x, w_conv, b_conv, y):
     for j in range(w_conv_shape[-1]):
         L = dl_dy[:,:,j].reshape((1,x_shape[0]*x_shape[1]))
         for i in range(x_shape[-1]):
-            x_padding = np.pad(x[:,:,id_i], (1, 1), 'constant', constant_values=0)
+            x_padding = np.pad(x[:,:,i], (1, 1), 'constant', constant_values=0)
 
             X = im2col_sliding_strided(x_padding, [x_shape[0],x_shape[1]])
 
@@ -162,7 +168,7 @@ def conv_backward(dl_dy, x, w_conv, b_conv, y):
 
             dl_dw[:,:,i,j] = dl_dw_pre
 
-        dl_db[1, jj] = np.sum(dl_dy[:,:,j])
+        dl_db[0, j] = np.sum(dl_dy[:,:,j])
 
     return dl_dw, dl_db
 
@@ -170,9 +176,9 @@ def pool2x2(x):
     # TO DO
     x_size = x.shape
 
-    new_size = np.ceil(x_size/2)
+    new_size = np.ceil(np.array(x_size)/2)
 
-    y = np.zeros((new_size[0],new_size[1],x_size[-1]))
+    y = np.zeros((np.int(new_size[0]),np.int(new_size[1]),x_size[-1]))
 
     for i in range(x_size[-1]):
 
@@ -191,28 +197,35 @@ def pool2x2(x):
 
 def pool2x2_backward(dl_dy, x, y):
     # TO DO
-    x_size = size(x)
+    x_size = x.shape
 
-    new_size = np.ceil(x_size/2)
+    new_size = np.ceil(np.array(x_size)/2)
 
-    dl_dx_pre = np.zeros((2*new_size[0],2*new_size[1],x_size[-1]))
+    dl_dx_pre = np.zeros((np.int(2*new_size[0]),np.int(2*new_size[1]),x_size[-1]))
 
     for k in range(x_size[-1]):
 
         K = 2
         L = 2
+        add_1 = np.int(x_size[0]%K)
+        add_2 = np.int(x_size[1]%L)
 
-        x_padding  = np.pad(x[:,:,k], ((0,x_size[0]%K), (0,x_size[1]%L)), 'constant', constant_values=0)
+        x_padding  = np.pad( x[:,:,k], ((0,add_1), (0,add_2)), 'constant', constant_values=0)
 
-        x_pre = x_padding[:new_size[0]*K, :new_size[1]*L].reshape(new_size[0], K, new_size[1], L)
-        x_temp = np.zero_like(x_pre)
+        end_1 = np.int(new_size[0]*K)
+        end_2 = np.int(new_size[1]*L)
 
-        for i in range(new_size[0]):
-            for j in range(new_size[1]):
+        x_pre = x_padding[:end_1, :end_2].reshape(np.int(new_size[0]), K, np.int(new_size[1]), L)
+        x_temp = np.zeros_like(x_pre)
+
+        for i in range(np.int(new_size[0])):
+            for j in range(np.int(new_size[1])):
                 x_temp[i,:,j,:] = np.where( x_pre[i,:,j,:] == np.max( x_pre[i,:,j,:]), dl_dy[i,j,k] , 0)
 
-        dl_dx_pre[:,:,k] = x_temp.reshape((2*new_size[0],2*new_size[1]))
-    dl_dx = dl_dx_pre[:H, :W, :]
+        dl_dx_pre[:,:,k] = x_temp.reshape((np.int(2*new_size[0]),np.int(2*new_size[1])))
+
+
+    dl_dx = dl_dx_pre[:-add_1, :-add_2, :]
 
     return dl_dx
 
@@ -374,8 +387,8 @@ def train_mlp(mini_batch_x, mini_batch_y):
     nBatch = len(mini_batch_x)
     batch_size = x_shape[1]
     print(y_shape)
-    lr = 1e-5
-    lamda = 0.96
+    lr =1.1e-5  #1.77e-5
+    lamda =0.915  #0.82
 
     #w1_size = [30, x_shape[0]]
     #w2_size = [y_shape[0], 30]
@@ -386,7 +399,7 @@ def train_mlp(mini_batch_x, mini_batch_y):
     w2 = np.random.rand(10, 30)
     b1 = np.random.rand(30, 1)
     b2 = np.random.rand(10, 1)
-    nIter = 50
+    nIter = 150
     #k = 1
 
     loss_curve = []
@@ -394,11 +407,11 @@ def train_mlp(mini_batch_x, mini_batch_y):
     #Training Loop
     for id_x in range(nIter):
 
-        if (id_x%50 == 0):
+        if (id_x % 15 == 0):
             print("Done",id_x/nIter)
         #print("Done",id_x)
 
-        if ((id_x%10) == 0):
+        if ((id_x % 5) == 0):
             lr = lr * lamda
         dL_dw1 = np.zeros((1,np.size(w1)))
         dL_dw2 = np.zeros((1,np.size(w2)))
@@ -461,7 +474,7 @@ def train_cnn(mini_batch_x, mini_batch_y):
     batch_size = x_shape[1]
 
     lr = 1e-5
-    lamda = 0.8
+    lamda = 0.89
 
 
     #w_conv_size = [3 3 1 3]
@@ -471,12 +484,59 @@ def train_cnn(mini_batch_x, mini_batch_y):
 
 
     w_conv = np.random.rand(3,3,1,3)
-    w_fc_size = np.random.rand(1,3)
-    b_conv = np.random.rand(10,147)
-    b_fc_size = np.random.rand(10,1)
+    b_conv = np.random.rand(1,3)
+    w_fc = np.random.rand(10,147)
+    b_fc = np.random.rand(10,1)
     nIter = 20
 
     loss_curve = []
+    for id_x in range(nIter):
+        if ((id_x % 4) == 0):
+            print("Done",id_x/nIter)
+
+        if ((id_x % 6) == 0):
+            lr = lr * lamda;
+
+
+            dL_dw_conv = np.zeros(w_conv.shape)
+            dL_db_conv = np.zeros(b_conv.shape)
+            dL_dw_fc = np.zeros(w_fc.shape)
+            dL_db_fc = np.zeros(b_fc.shape)
+
+        for i in range(nBatch):
+
+            for j in range(batch_size):
+                x = ((mini_batch_x[i])[:,j]).reshape((14,14,1)) # input
+                a_1 = conv(x, w_conv, b_conv)      # Conv
+                f_1 = relu(a_1)                    # Relu
+                f_2 = pool2x2(f_1)                # Pooling
+                f_3 = flattening(f_2)             # Flatten
+
+                a_2 = fc(f_3, w_fc, b_fc);          # FC
+
+                y = ((mini_batch_y[i])[j,:]).reshape((1,10))
+                # loss
+                loss, dl_da_2 = loss_cross_entropy_softmax(a_2, y)  #dldy -- n*1
+                dl_df_3, dl_dw_fc, dl_db_fc = fc_backward(dl_da_2, f_3, w_fc, b_fc, a_2)
+                dL_dw_fc = dL_dw_fc + dl_dw_fc.reshape(w_fc.shape)
+                dL_db_fc = dL_db_fc + dl_db_fc.reshape(dL_db_fc.shape)
+
+                dl_df_2 = flattening_backward(dl_df_3, f_2, f_3)
+                dl_df_1 = pool2x2_backward(dl_df_2, f_1, f_2)
+                dl_da_1 = relu_backward(dl_df_1, a_1, f_1)
+                dl_dw_conv, dl_db_conv = conv_backward(dl_da_1, x, w_conv, b_conv, a_1)
+                dL_dw_conv = dL_dw_conv + dl_dw_conv
+                dL_db_conv = dL_db_conv + dl_db_conv
+
+
+            w_conv = w_conv - lr/batch_size*dL_dw_conv
+            b_conv = b_conv - lr/batch_size*dL_db_conv
+            w_fc = w_fc - lr/batch_size*dL_dw_fc
+            b_fc = b_fc - lr/batch_size*dL_db_fc
+
+
+            loss_curve.append(loss/batch_size)
+
 
 
 
