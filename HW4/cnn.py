@@ -138,7 +138,7 @@ def conv(x, w_conv, b_conv):
         X = im2col_sliding_strided(x_padding, [3,3])
 
         for id_j in range(w_conv_shape[-1]):
-            w = np.flip(w_conv[:,:,id_i,id_j].reshape((1,w_conv_shape[0]*w_conv_shape[1])),axis=0)
+            w = np.flip(w_conv[:,:,id_i,id_j].reshape((w_conv_shape[0]*w_conv_shape[1])),axis=0)
 
             b = b_conv[:,id_j]
 
@@ -554,8 +554,8 @@ def train_cnn(mini_batch_x, mini_batch_y):
             b_conv = b_conv - lr/batch_size*dL_db_conv
             w_fc = w_fc - lr/batch_size*dL_dw_fc
             b_fc = b_fc - lr/batch_size*dL_db_fc
-            if(np.random.rand(1)>0.9):
-                print(loss, dl_da_2)
+            #if(np.random.rand(1)>0.9):
+                #print(loss, dl_da_2)
 
         print(loss, dl_da_2)
 
