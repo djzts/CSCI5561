@@ -1,68 +1,84 @@
 #!/usr/bin/env python
 # coding: utf-8
 import numpy as np
+from scipy import signal
 
 
 # In[ ]:
 
 
-def ssd_patch_2d( I, T )
+def ssd_patch_2d( I, T ):
     mask = np.where(T >= 0,1,0); # -1 represents empty
-    ssd_map = filter2(mask, I .* I, 'valid') + sum(sum(T .* T)) - 2 * filter2(mask .* T, I, 'valid')
-return ssd_map 
+
+    ssd_map = signal.convolve2d(mask, np.rot90(I * I), mode='valid') + np.sum(T * T) - 2 *signal.convolve2d(mask * T, np.rot90(I), mode='valid')
+
+    return ssd_map 
 
 
 # In[1]:
 
 
-function [ ssd_map ] = ssd_patch(I, T)
+def  ssd_patch(I, T):
 
-    ssd_map_r = ssd_patch_2d(I(:, :, 1), T(:, :, 1));
-    ssd_map_g = ssd_patch_2d(I(:, :, 2), T(:, :, 2));
-    ssd_map_b = ssd_patch_2d(I(:, :, 3), T(:, :, 3));
-    ssd_map = ssd_map_r + ssd_map_g + ssd_map_b;
+    ssd_map_r = ssd_patch_2d(I[:, :, 0], T[:, :, 0])
+    ssd_map_g = ssd_patch_2d(I[:, :, 1], T[:, :, 1])
+    ssd_map_b = ssd_patch_2d(I[:, :, 2], T[:, :, 2])
+
+    ssd_map = ssd_map_r + ssd_map_g + ssd_map_b
+
+    ssd_map = normalize_2d_matrix(ssd_map)
+
+    return ssd_map
+
+
+# In[ ]:
+
+
+def set_forbid_region( ssd_map, target_mask, patch_size ):
+    LARGE_CONST = 100
+
+    hp_size = np.floor(patch_size / 2)
+
+    forbid_area = imdilate(target_mask, np.ones((patch_size, patch_size)))
     
-    ssd_map = normalize_2d_matrix(ssd_map);
+    ssd_map = ssd_map + (forbid_area[hp_size + 1 : len(target_mask) - hp_size+1,  hp_size + 1 : target_mask.shape()[1] - hp_size+1] * LARGE_CONST)
+
+    return ssd_map
 
 
 # In[ ]:
 
 
-[ ssd_map ] = set_forbid_region( ssd_map, target_mask, patch_size )
-    LARGE_CONST = 100;
-    hp_size = floor(patch_size / 2);
-    forbid_area = imdilate(target_mask, ones(patch_size, patch_size));
-    ssd_map = ssd_map + (forbid_area(hp_size + 1 : size(target_mask, 1) - hp_size,...
-          hp_size + 1 : size(target_mask, 2) - hp_size) * LARGE_CONST);
-
-end
+function p_norm = point_norm(map, y, x ):
+   rect = map[y - 1 : y + 1, x - 1 : x + 1]
 
 
-# In[ ]:
 
+   #dx=diff(rect(:,ceil(end/2)),2)
+   #dy=diff(rect(ceil(end/2),:),2)
 
-function p_norm = point_norm(map, y, x )
-   rect = map(y - 1 : y + 1, x - 1 : x + 1);
-   dx=diff(rect(:,ceil(end/2)),2);
-   dy=diff(rect(ceil(end/2),:),2);
-   vec=[dx;dy];
+   dx = np.diff(rect[:,np.ceil(rect.shape[1]/2],axis=0,n=2)
+   dy = np.diff(rect[np.ceil(rect.shape[0]/2,:],axis=0,n=2)
+
+   #vec=[dx;dy]
+   vec = np.concatenate((dx,dy))
    
-   if dx == 0 && dy == 0
-       p_norm = [1; 1] / norm([1; 1]); 
-   else
-       p_norm = vec / norm(vec);
-   end
-end
+   if dx == 0 and dy == 0:
+       p_norm =np.ones((2,1))/ np.linalg.norm(np.ones((2,1))) 
+   else:
+       p_norm = vec / np.linalg.norm(vec)
+   
+    return p_norm
 
 
 # In[ ]:
 
 
-function [ value ] = point_fil( I, h, hp_size, y, x )
+def point_fil( I, h, hp_size, y, x ):
 
-value = sum(sum(I(y - hp_size : y + hp_size, x - hp_size : x + hp_size) .*  h));
+    value = np.sum(I[y - hp_size : y + hp_size+1, x - hp_size : x + hp_size+1] *  h)
 
-enda
+    return value 
 
 
 # In[ ]:
