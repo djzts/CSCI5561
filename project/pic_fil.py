@@ -84,36 +84,44 @@ def point_fil( I, h, hp_size, y, x ):
 # In[ ]:
 
 
-function [ norm_m ] = normalize_2d_matrix( m )
-    norm_m = (m - min(min(m))) / (max(max((m)) - min(min(m))));
-end
+def normalize_2d_matrix( m ):
+    norm_m = (m - np.min(m)) / (np.max(m) - np.min(m))
+    return norm_m
+
+
+# In[ ]:
+def pol2cart(rho, phi):
+    x = rho * math.cos(math.radians(phi))
+    y = rho * math.sin(math.radians(phi))
+    return x, y
+
+def isophote(im, y, x):
+    window = im[y - 1 : y + 2, x - 1 : x + 2]
+    center_value = window[1, 1]
+    np.where(window==-1,center_value,window)  #window(window == -1) = center_value
+    fx = window[1, 2] - window[1, 0]
+    fy = window[2, 1] - window[0, 1]
+    if fx == 0 and fy == 0：
+       isoV = np.ones((2,1))
+    else：
+        I = np.sqrt(fx**2 + fy**2)
+        theta = math.atan(fx/fy) #theta = acot(fy / fx)
+
+        isoV_x, isoV_y = pol2cart(theta, I)
+        isoV = np.array([[isoV_x], [isoV_y]])
+    return isoV
 
 
 # In[ ]:
 
 
-function [ isoV ] = isophote(im, y, x)
-    window = im(y - 1 : y + 1, x - 1 : x + 1);
-    center_value = window(2, 2);
-    window(window == -1) = center_value;
-    fx = window(2, 3) - window(2, 1);
-    fy = window(3, 2) - window(1, 2);
-    if fx == 0 && fy == 0
-       isoV = [0; 0]; 
-    else
-        I = sqrt(fx^2 + fy^2);
-        theta = acot(fy / fx);
-        [isoV_x, isoV_y] = pol2cart(theta, I); 
-        isoV = [isoV_x; isoV_y];
-    end
-end
+def go( I, mask, patch_size, tol):
+    #I = repmat((~mask), 1, 1, 3) .* I;
+    mask_not = np.where(mask>0,0,1)
+    temp_1 = mask_not.reshape((mask_not.shape[0],mask_not.shape[1],1))
+    I = np.tile(temp_1,(1,1,3))
 
 
-# In[ ]:
-
-
-function [ syn_im ] = go( I, mask, patch_size, tol)
-    I = repmat((~mask), 1, 1, 3) .* I;
     syn_im = I;
     syn_im(syn_im == 0) = -1;
     hp_size = floor(patch_size / 2);
@@ -138,8 +146,8 @@ function [ syn_im ] = go( I, mask, patch_size, tol)
             confidence_map(y - hp_size : y + hp_size, x - hp_size : x + hp_size)...
             + ((~tplt_mask(:, :, 1)) * confidence);
         i = i + 1;
-    end
-end
+    return syn_im
+
 
 
 # In[ ]:
