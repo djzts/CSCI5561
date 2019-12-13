@@ -14,9 +14,9 @@ function [ syn_im ] = go( I, mask, patch_size, tol)
         tplt_mask = template >= 0;
         patch = tplt_mask .* template + ~tplt_mask .* patch;
         syn_im(y - hp_size : y + hp_size, x - hp_size : x + hp_size, :) = patch;
-        %figure(9)
-        %set(gcf,'Position',[700,0,1300,800]);
-        %imagesc(syn_im);
+        figure(9)
+        set(gcf,'Position',[700,0,800,800]);
+        imagesc(syn_im);
         %pause(0.1);
         
         mask(y - hp_size : y + hp_size, x - hp_size : x + hp_size) = 0;
