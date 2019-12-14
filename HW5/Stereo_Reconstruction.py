@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[63]:
+
+
 import cv2
 import numpy as np
 import scipy.io as sio
@@ -7,34 +13,235 @@ import sys
 from sklearn.neighbors import NearestNeighbors
 from mpl_toolkits.mplot3d import Axes3D
 
+
+# In[64]:
+
+
 def find_match(img1, img2):
     # TO DO
+    sift1 = cv2.xfeatures2d.SIFT_create()
+    kp1, des1 = sift1.detectAndCompute(img1,None)
+
+    sift2 = cv2.xfeatures2d.SIFT_create()
+    kp2, des2 = sift2.detectAndCompute(img2,None)
+    
+    nbrs = NearestNeighbors(algorithm='auto').fit(des2)
+    
+    distances, indices =nbrs.kneighbors(des1,n_neighbors=2)
+    
+    nbrs_2 = NearestNeighbors(algorithm='auto').fit(des1)
+    
+    distances_2, indices_2 =nbrs_2.kneighbors(des2,n_neighbors=2)
+    
+    x1_12 = np.empty((0,2))
+    x2_12 = np.empty((0,2))
+    
+    for i in range(len(distances)):
+        if (distances[i,0]/distances[i,1])<0.5:
+            x1_12 = np.append(x1_12, kp1[i].pt)
+            x2_12 = np.append(x2_12, kp2[indices[i,0]].pt)
+            
+    x1_12 = x1_12.reshape(len(x1_12)//2,2)
+    x2_12 = x2_12.reshape(len(x2_12)//2,2)
+
+    
+    x1_21 = np.empty((0,2))
+    x2_21 = np.empty((0,2))
+    
+    for i in range(len(distances_2)):
+        if (distances_2[i,0]/distances_2[i,1])<0.5:
+            x2_21 = np.append(x2_21, kp2[i].pt)
+            x1_21 = np.append(x1_21, kp1[indices_2[i,0]].pt)
+    
+    x1_21 = x1_21.reshape(len(x1_21)//2,2)
+    x2_21 = x2_21.reshape(len(x2_21)//2,2)
+    
+    set_1 =  np.concatenate((x1_12, x2_12), axis=1)
+    set_2 =  np.concatenate((x1_21, x2_21), axis=1)
+    
+    set_1_v = set_1.view([('', set_1.dtype)] * set_1.shape[1]).ravel()
+    set_2_v = set_2.view([('', set_2.dtype)] * set_2.shape[1]).ravel()
+    final_p = np.intersect1d(set_1_v, set_2_v).view(set_1.dtype).reshape(-1, set_1.shape[1])
+    
+    pts1 = final_p[:,0:2]
+    pts2 = final_p[:,2:]
+
+    
     return pts1, pts2
+
+
+# In[89]:
 
 
 def compute_F(pts1, pts2):
     # TO DO
+    sample_num = len(pts1)
+    inlier_record = 0
+    inlierThresh = 0.7
+    ransac_iter = 60
+    threshold = 0.01
+    draw_num = 8
+    
+    
+    #W = @(ux, uy, vx, vy) [ux*vx, uy*vx, vx, ux*vy, uy* vy, vy, ux, uy, 1];
+    
+    i = 0 
+    count = 0
+    while ((i <= ransac_iter) and (count <= 1e3)):
+        count = count + 1
+        #if count%100 ==0:
+            #print(count)
+            
+        draw = np.random.choice(sample_num, draw_num,replace=False)
+        pts1_draw = pts1[draw, :]
+        pts2_draw = pts2[draw, :]
+        
+        A = []
+        
+        for j in range(draw_num):
+            temp = np.outer(np.append(pts2_draw[j],1),np.append(pts1_draw[j],1))
+            A.append(np.reshape(temp,np.size(temp) )) 
+        
+        A = np.reshape(A,(draw_num,np.size(temp)))
+        
+        u, s, vh = np.linalg.svd(A)
+        
+        v= vh.T
+        f = v[:, -1].reshape((3,3))
+
+        U,D,VH =  np.linalg.svd(f)
+        D[-1] = 0
+        F_temp = U @ np.diag(D) @ VH
+        
+        P =[]
+        for j in range(sample_num):
+            temp_1 = np.outer(np.append(pts2[j],1),np.append(pts1[j],1))
+            P.append(np.reshape(temp_1,np.size(temp_1) )) 
+        
+        P = np.reshape(P,(sample_num,np.size(temp_1)))
+        d = P@F_temp.reshape((np.size(F_temp),1))
+        
+        numInlier = np.sum(np.where(abs(d)<threshold,1,0))
+        
+        if numInlier > inlier_record:
+            inlier_record = numInlier
+            F = F_temp 
+            
     return F
+
+
+# In[90]:
+
+
+def skew(x):
+    output = np.array([[0,-x[2],x[1]],
+                       [x[2],0,-x[0]],
+                       [-x[1],x[0],0]])
+    return output
+                                      
+
+
+# In[91]:
 
 
 def triangulation(P1, P2, pts1, pts2):
     # TO DO
+    pts3D=np.zeros((len(pts1),3))
+    for i in range(len(pts1)):
+        A1 = skew(np.append(pts1[i,:],1)) @ P1
+        A2 = skew(np.append(pts2[i,:],1)) @ P2                                             
+        A  = np.concatenate((A1, A2), axis=0)  
+        u, s, vh = np.linalg.svd(A)
+        v= vh
+        p = v[:,-1]
+        pts3D[i,:] = p[:3]/p[3]
     return pts3D
+
+
+# In[92]:
 
 
 def disambiguate_pose(Rs, Cs, pts3Ds):
     # TO DO
+    max_sum = 0
+    id_n = 0
+    for i in range(len(Rs)):
+        r = np.array(Rs[i][-1,:])
+        idx = (pts3Ds[i]-Cs[i].T)@r
+        if len(np.where(idx>0))>max_sum:
+            max_sum =len(np.where(idx>0))
+            id_n = i
+    R = Rs[id_n]
+    C = Cs[id_n]
+    pts3D = pts3Ds[id_n]
     return R, C, pts3D
+
+
+# In[93]:
 
 
 def compute_rectification(K, R, C):
     # TO DO
+    C = np.reshape(C, (1,3))  # make sure C is 1x3
+
+    rx = -C / np.linalg.norm(C)
+    rz_tilde = np.array([0, 0, 1])
+    rz = (rz_tilde - (rz_tilde @ rx.T) @ rx)/ np.linalg.norm((rz_tilde - (rz_tilde @ rx.T) @ rx))
+    rz = rz.reshape((1,3))
+    ry = np.cross(rz, rx)
+    
+    #print(rx.shape,ry.shape,rz.shape)
+    R_rect = np.concatenate((rx,ry,rz), axis=0)
+
+    H1 = K @ R_rect @ np.linalg.inv(K)
+    H2 = K @ R_rect @ R.T @ np.linalg.inv(K)
     return H1, H2
+
+
+# In[94]:
 
 
 def dense_match(img1, img2):
     # TO DO
+    sift = cv2.xfeatures2d.SIFT_create()
+
+    stride= 1
+    size =3
+    
+    ## 不确定 KeyPoint(x, y, size)
+    kp = [cv2.KeyPoint(x, y, size) for y in range(0, img1.shape[0], stride) 
+                                    for x in range(0, img1.shape[1], stride)]
+
+    kp_1, disp_1_pre = sift.compute(img1 , kp)
+    
+    
+    kp = [cv2.KeyPoint(x, y, size) for y in range(0, img2.shape[0], stride) 
+                                    for x in range(0, img2.shape[1], stride)]
+    kp_2, disp_2_pre = sift.compute(img2 , kp)
+    
+    disp_1 = disp_1_pre.reshape((img1.shape[0],img1.shape[1],disp_1_pre.shape[-1]))
+    disp_2 = disp_2_pre.reshape((img2.shape[0],img2.shape[1],disp_2_pre.shape[-1]))
+    
+    
+    disparity = np.zeros_like(img1)
+    for  i in range(img1.shape[0]):
+
+        nbrs = NearestNeighbors(radius=1.0).fit(disp_1[i,:,:])
+
+        distances, indices =nbrs.kneighbors(disp_2[i,:,:],n_neighbors=1) 
+        
+        idx = np.argmin(np.abs(indices - i), axis=1)
+        #print(len(idx),indices.shape)
+        final_smooth_one = indices[np.arange(len(idx)),idx]
+        
+        disparity[i,:] = abs(final_smooth_one-np.arange(img1.shape[1]))
+        
+    disparity = np.where(img1 == 0, 0, disparity)
+        
     return disparity
+
+
+# In[95]:
 
 
 # PROVIDED functions
@@ -191,6 +398,9 @@ def visualize_disparity_map(disparity):
     plt.show()
 
 
+# In[100]:
+
+
 if __name__ == '__main__':
     # read in left and right images as RGB images
     img_left = cv2.imread('./left.bmp', 1)
@@ -200,7 +410,7 @@ if __name__ == '__main__':
     # Step 1: find correspondences between image pair
     pts1, pts2 = find_match(img_left, img_right)
     visualize_find_match(img_left, img_right, pts1, pts2)
-
+    
     # Step 2: compute fundamental matrix
     F = compute_F(pts1, pts2)
     visualize_epipolar_lines(F, pts1, pts2, img_left, img_right)
@@ -239,3 +449,10 @@ if __name__ == '__main__':
     # save to mat
     sio.savemat('stereo.mat', mdict={'pts1': pts1, 'pts2': pts2, 'F': F, 'pts3D': pts3D, 'H1': H1, 'H2': H2,
                                      'img_left_w': img_left_w, 'img_right_w': img_right_w, 'disparity': disparity})
+
+
+# In[ ]:
+
+
+
+
